@@ -5,7 +5,8 @@
   "main": "index.mjs",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node --env-file=.env index.mjs "
+    "start": "node index.mjs",
+    "start-local": "node --env-file=.env index.mjs"
   },
   "author": "bgack@schule4-0.de",
   "license": "ISC",
