@@ -1,6 +1,7 @@
 import { AzureOpenAI } from "openai";
 import express from "express";
 import cors from "cors";
+import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 
 const app = express();
 const port = 3000;
@@ -9,6 +10,11 @@ app.use(express.json());
 app.use(cors());
 
 app.use(express.static("public"));
+app.use("/free", express.static("public"));
+
+if (!existsSync(`prompts`)) {
+  mkdirSync("prompts");
+}
 
 const log = console.log;
 console.log = function () {
@@ -27,6 +33,14 @@ const passwordProtect = (req, res, next) => {
     return res.status(403).send("Invalid token");
   }
 };
+
+function simpleHash(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  }
+  return (hash >>> 0).toString(36);
+}
 
 app.post("/api/chat", passwordProtect, async (req, res) => {
   const prompt = req.body?.prompt;
@@ -79,13 +93,27 @@ app.post("/api/chat", passwordProtect, async (req, res) => {
 
   // Pipe the response stream back to the client
   res.setHeader("Content-Type", "text/event-stream");
+  let resultBuffer = "";
 
   for await (const event of stream) {
     if (event.choices[0]?.delta?.content) {
       res.write(event.choices[0].delta.content);
+      resultBuffer += event.choices[0].delta.content;
     }
   }
   res.end();
+
+  const clientId = simpleHash(req.socket.remoteAddress);
+
+  const message = `${new Date().toLocaleString()}: [PROMPT] ${req.body?.prompt}
+
+${resultBuffer}
+
+---
+
+`;
+
+  appendFileSync(`prompts/${clientId}.log`, message, "utf8");
 });
 
 app.listen(port, () => {
